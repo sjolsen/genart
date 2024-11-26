@@ -1,0 +1,19 @@
+[project]
+name = "genart"
+version = "0.1.0"
+description = "Generative pixel art"
+
+dependencies = [
+  "numpy",
+  "pyside6",
+]
+
+[project.optional-dependencies]
+tests = [
+  "pytype",
+]
+
+[tool.pytype]
+inputs = [
+  "genart",
+]
