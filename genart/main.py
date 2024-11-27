@@ -1,4 +1,5 @@
-from typing import Optional
+import enum
+from typing import Any, Optional
 
 from PySide6 import QtCore
 from PySide6 import QtGui
@@ -78,6 +79,11 @@ class ImageArray:
         self.blue = self.bgra[:, :, 0]
 
 
+class ColorScheme(enum.Enum):
+    MONOCHROME = enum.auto()
+    COLOR_DIVMOD_GRAD = enum.auto()
+
+
 class RandomArt:
     image: QtGui.QImage
     view: ImageView
@@ -92,14 +98,21 @@ class RandomArt:
         self.view = ImageView(self.image, size=QtCore.QSize(512, 512))
         self.array = ImageArray(self.image)
 
-    def render(self, p: program.Program):
+    def blit(self, dst: numpy.ndarray, src: numpy.ndarray):
+        numpy.copyto(dst, src, casting='unsafe')
+
+    def render(self, p: program.Program, color_scheme: ColorScheme):
         try:
             result = p.run(self.array.xy)
-            [dy, dx] = numpy.gradient(result)
-            theta = numpy.angle(dx + dy * 1j)
-            numpy.copyto(self.array.blue, result % 256, casting='unsafe')
-            numpy.copyto(self.array.red, result // 256, casting='unsafe')
-            numpy.copyto(self.array.green, 128 * (1 + numpy.cos(theta)), casting='unsafe')
+            match color_scheme:
+                case ColorScheme.MONOCHROME:
+                    self.blit(self.array.rgb, result[:, :, numpy.newaxis])
+                case ColorScheme.COLOR_DIVMOD_GRAD:
+                    [dy, dx] = numpy.gradient(result)
+                    theta = numpy.angle(dx + dy * 1j)
+                    self.blit(self.array.blue, result % 256)
+                    self.blit(self.array.red, result // 256)
+                    self.blit(self.array.green, 128 * (1 + numpy.cos(theta)))
         except program.ExecutionError:
             self.image.fill('magenta')
         self.view.update()
@@ -113,6 +126,27 @@ class SaveDialog(QtWidgets.QFileDialog):
         self.setAcceptMode(self.AcceptMode.AcceptSave)
         self.setMimeTypeFilters(['image/png'])
         self.setDefaultSuffix('png')
+
+
+class RadioGroup(QtWidgets.QGroupBox):
+    group: QtWidgets.QButtonGroup
+    data: dict[QtCore.QObject, Any]
+
+    def __init__(self, title: str):
+        super().__init__(title)
+        self.setLayout(QtWidgets.QVBoxLayout())
+        self.group = QtWidgets.QButtonGroup()
+        self.data = {}
+
+    def add_button(self, label: str, data: Any) -> QtWidgets.QRadioButton:
+        button = QtWidgets.QRadioButton(label)
+        self.data[button] = data
+        self.layout().addWidget(button)
+        self.group.addButton(button)
+        return button
+
+    def current_data(self) -> Any:
+        return self.data[self.group.checkedButton()]
 
 
 class ProgramItem(QtWidgets.QListWidgetItem):
@@ -130,6 +164,7 @@ class UI:
     save_dialog: SaveDialog
     art: RandomArt
     programs: QtWidgets.QListWidget
+    color_scheme: RadioGroup
 
     def __init__(self, app: QtWidgets.QApplication):
         super().__init__()
@@ -140,7 +175,7 @@ class UI:
         self.save_dialog.fileSelected.connect(self.save_program)
         self.art = RandomArt()
         self.programs = QtWidgets.QListWidget()
-        self.programs.currentItemChanged.connect(self.select_program)
+        self.color_scheme = RadioGroup('Color scheme')
 
         center = QtWidgets.QWidget()
         self.window.setCentralWidget(center)
@@ -166,12 +201,27 @@ class UI:
         reroll.clicked.connect(self.reroll)
         buttons.addWidget(reroll, 1, 0, 1, 2)
 
+        settings = QtWidgets.QVBoxLayout()
+        hlayout.addLayout(settings)
+        settings.setAlignment(QtCore.Qt.AlignmentFlag.AlignTop)
+        settings.addWidget(QtWidgets.QLabel('Rendering settings'))
+
+        settings.addWidget(self.color_scheme)
+        self.color_scheme.add_button('Monochrome', ColorScheme.MONOCHROME)
+        self.color_scheme.add_button('Color (divmod + gradient)', ColorScheme.COLOR_DIVMOD_GRAD).click()
+
         for d in demo.DEMOS:
             self.programs.addItem(ProgramItem(d))
-        self.programs.setCurrentRow(0)
+        self.programs.setCurrentRow(len(demo.DEMOS) - 1)
 
-    def select_program(self, new: ProgramItem, old: ProgramItem):
-        self.art.render(new.program)
+        self.programs.currentItemChanged.connect(self.render)
+        self.color_scheme.group.buttonClicked.connect(self.render)
+        self.render()
+
+    def render(self):
+        p = self.programs.currentItem().program
+        c = self.color_scheme.current_data()
+        self.art.render(p, c)
 
     def copy_program(self):
         item = self.programs.currentItem()
