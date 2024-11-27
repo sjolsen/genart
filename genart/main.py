@@ -5,6 +5,8 @@ from PySide6 import QtGui
 from PySide6 import QtWidgets
 import numpy
 
+from genart import program
+
 
 def size_transform(src: QtCore.QSize, dst: QtCore.QSize) -> QtGui.QTransform:
     """Compute the transformation matrix from one size to another."""
@@ -86,9 +88,10 @@ def main(argv: list[str]) -> int:
 
     # red = x, green = y, blue = checker
     array = ImageArray(image)
-    rg = numpy.moveaxis(array.xy, 0, -1)
-    checker = -(numpy.sum(array.xy, 0) % 2) & 0xff
-    numpy.copyto(array.rgb, numpy.dstack((rg, checker)), casting='unsafe')
+    prog = program.random_program()
+    print(str(prog))
+    result = prog.run(array.xy) % 256
+    numpy.copyto(array.rgb, result[:, :, numpy.newaxis], casting='unsafe')
 
     view = ImageView(image, size=QtCore.QSize(512, 512))
     window.setCentralWidget(view)
