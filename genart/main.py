@@ -8,6 +8,7 @@ import numpy
 
 from genart import demo
 from genart import program
+from genart.program import Program
 
 
 def size_transform(src: QtCore.QSize, dst: QtCore.QSize) -> QtGui.QTransform:
@@ -84,6 +85,7 @@ class ImageArray:
 
 class ColorScheme(enum.Enum):
     MONOCHROME = enum.auto()
+    COLOR_DIVMOD = enum.auto()
     COLOR_DIVMOD_GRAD = enum.auto()
 
 
@@ -101,15 +103,19 @@ class RandomArt:
         self.view = ImageView(self.image, size=QtCore.QSize(512, 512))
         self.array = ImageArray(self.image)
 
-    def blit(self, dst: numpy.ndarray, src: numpy.ndarray):
+    def blit(self, dst: numpy.ndarray, src: numpy.ndarray | int):
         numpy.copyto(dst, src, casting='unsafe')
 
-    def render(self, p: program.Program, color_scheme: ColorScheme):
+    def render(self, p: Program, color_scheme: ColorScheme):
         try:
             result = p.run(self.array.xy)
             match color_scheme:
                 case ColorScheme.MONOCHROME:
                     self.blit(self.array.rgb, result[:, :, numpy.newaxis])
+                case ColorScheme.COLOR_DIVMOD:
+                    self.blit(self.array.blue, result % 256)
+                    self.blit(self.array.red, result // 256)
+                    self.blit(self.array.green, 0)
                 case ColorScheme.COLOR_DIVMOD_GRAD:
                     [dy, dx] = numpy.gradient(result)
                     theta = numpy.angle(dx + dy * 1j)
@@ -153,9 +159,9 @@ class RadioGroup(QtWidgets.QGroupBox):
 
 
 class ProgramItem(QtWidgets.QListWidgetItem):
-    program: program.Program
+    program: Program
 
-    def __init__(self, p: program.Program):
+    def __init__(self, p: Program):
         super().__init__()
         self.program = p
         self.setText(str(p))
@@ -211,6 +217,8 @@ class UI:
 
         settings.addWidget(self.color_scheme)
         self.color_scheme.add_button('Monochrome', ColorScheme.MONOCHROME)
+        self.color_scheme.add_button(
+            'Color (divmod)', ColorScheme.COLOR_DIVMOD)
         self.color_scheme.add_button(
             'Color (divmod + gradient)', ColorScheme.COLOR_DIVMOD_GRAD).click()
 
