@@ -91,3 +91,13 @@ DEMO4 = ((18 | y) << (1 & (y >> x))) ^ ((y & x) << (x >> y)) * (x + y)
 DEMO5 = -y - (x >> -161 * (x << y))
 DEMO6 = ((48 | y) // x) // -(x & y)
 DEMO7 = ((~x << 130 // y) + y % 0) << (y * x & -8) % 36
+
+DEMOS: tuple[DemoProgram, ...] = (
+    DEMO1,
+    DEMO2,
+    DEMO3,
+    DEMO4,
+    DEMO5,
+    DEMO6,
+    DEMO7,
+)

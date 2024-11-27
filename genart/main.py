@@ -93,32 +93,62 @@ class RandomArt:
         self.array = ImageArray(self.image)
 
     def render(self, p: program.Program):
-        print(str(p))
         result = p.run(self.array.xy) % 256
         numpy.copyto(self.array.rgb,
                      result[:, :, numpy.newaxis], casting='unsafe')
         self.view.update()
 
+
+class ProgramItem(QtWidgets.QListWidgetItem):
+    program: program.Program
+
+    def __init__(self, p: program.Program):
+        super().__init__()
+        self.program = p
+        self.setText(str(p))
+
+
+class UI:
+    window: QtWidgets.QMainWindow
+    art: RandomArt
+    programs: QtWidgets.QListWidget
+
+    def __init__(self):
+        super().__init__()
+        self.window = QtWidgets.QMainWindow()
+        self.window.setWindowTitle('genart')
+        self.art = RandomArt()
+        self.programs = QtWidgets.QListWidget()
+        self.programs.currentItemChanged.connect(self.select_program)
+
+        center = QtWidgets.QWidget()
+        self.window.setCentralWidget(center)
+
+        hlayout = QtWidgets.QHBoxLayout(center)
+        vlayout = QtWidgets.QVBoxLayout()
+        hlayout.addLayout(vlayout)
+        hlayout.addWidget(self.art.view)
+        vlayout.addWidget(self.programs)
+
+        button = QtWidgets.QPushButton('Reroll')
+        button.clicked.connect(self.reroll)
+        vlayout.addWidget(button)
+
+        for d in demo.DEMOS:
+            self.programs.addItem(ProgramItem(d))
+        self.programs.setCurrentRow(0)
+
+    def select_program(self, new: ProgramItem, old: ProgramItem):
+        self.art.render(new.program)
+
     def reroll(self):
-        self.render(program.generate_program())
+        item = ProgramItem(program.generate_program())
+        self.programs.addItem(item)
+        self.programs.setCurrentItem(item)
 
 
 def main(argv: list[str]) -> int:
     app = QtWidgets.QApplication(argv)
-    window = QtWidgets.QMainWindow()
-    window.setWindowTitle('genart')
-
-    art = RandomArt()
-    art.render(demo.DEMO1)
-
-    button = QtWidgets.QPushButton('Reroll')
-    button.clicked.connect(art.reroll)
-
-    center = QtWidgets.QWidget()
-    layout = QtWidgets.QVBoxLayout(center)
-    layout.addWidget(art.view)
-    layout.addWidget(button)
-
-    window.setCentralWidget(center)
-    window.show()
+    ui = UI()
+    ui.window.show()
     return app.exec()
