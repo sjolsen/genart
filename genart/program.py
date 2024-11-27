@@ -106,7 +106,7 @@ class Program:
                 stack.extend(pending)
             else:
                 inputs = [state[c] for c in top.children]
-                with numpy.errstate(divide='ignore'):
+                with numpy.errstate(all='ignore'):
                     state[top] = top.node.compute(xy, inputs)
                 stack.pop()
 
