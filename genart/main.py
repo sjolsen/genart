@@ -16,12 +16,17 @@ def size_transform(src: QtCore.QSize, dst: QtCore.QSize) -> QtGui.QTransform:
 class ImageView(QtWidgets.QWidget):
     """Fixed-sized widget for displaying a dynamically mutated QImage."""
     image: QtGui.QImage
+    resample: bool
     _size_hint: QtCore.QSize
     _paint_transform: QtGui.QTransform
+    _paint_buffer: QtGui.QImage
 
-    def __init__(self, image: QtGui.QImage, size: Optional[QtCore.QSize] = None):
+    def __init__(self, image: QtGui.QImage, *,
+                 size: Optional[QtCore.QSize] = None,
+                 resample: bool = False):
         super().__init__()
         self.image = image
+        self.resample = resample
         self._size_hint = size or image.size()
 
     def sizeHint(self) -> QtCore.QSize:
@@ -29,12 +34,22 @@ class ImageView(QtWidgets.QWidget):
 
     def resizeEvent(self, event: QtGui.QResizeEvent):
         self._paint_transform = size_transform(self.size(), self.image.size())
+        self._paint_buffer = QtGui.QImage(self.size(), self.image.format())
 
     def paintEvent(self, event: QtGui.QPaintEvent):
-        with QtGui.QPainter(self) as painter:
+        # Perform the scaling in the image's native color space
+        self._paint_buffer.setColorSpace(self.image.colorSpace())
+        with QtGui.QPainter(self._paint_buffer) as painter:
+            painter.setRenderHint(
+                QtGui.QPainter.SmoothPixmapTransform, self.resample)
             dst = event.rect().toRectF()
             src = self._paint_transform.mapRect(dst)
             painter.drawImage(dst, self.image, src)
+
+        # Paint the scaled image in non-linear sRGB
+        self._paint_buffer.convertToColorSpace(QtGui.QColorSpace.SRgb)
+        with QtGui.QPainter(self) as painter:
+            painter.drawImage(event.rect(), self._paint_buffer, event.rect())
 
 
 class ImageArray:
@@ -52,11 +67,12 @@ class ImageArray:
         shape = (image.size().width(), image.size().height(), 4)
         self.image = image
         self.xy = numpy.indices(shape[:2])[::-1]  # column-major
-        self.bgra = numpy.ndarray(shape, dtype=numpy.uint8, buffer=image.bits())
-        self.rgb = self.bgra[:,:,2::-1]
-        self.red = self.bgra[:,:,2]
-        self.green = self.bgra[:,:,1]
-        self.blue = self.bgra[:,:,0]
+        self.bgra = numpy.ndarray(
+            shape, dtype=numpy.uint8, buffer=image.bits())
+        self.rgb = self.bgra[:, :, 2::-1]
+        self.red = self.bgra[:, :, 2]
+        self.green = self.bgra[:, :, 1]
+        self.blue = self.bgra[:, :, 0]
 
 
 def main(argv: list[str]) -> int:
@@ -65,6 +81,7 @@ def main(argv: list[str]) -> int:
     window.setWindowTitle('genart')
 
     image = QtGui.QImage(QtCore.QSize(256, 256), QtGui.QImage.Format_RGB32)
+    image.setColorSpace(QtGui.QColorSpace.SRgbLinear)
     image.fill('magenta')
 
     # red = x, green = y, blue = checker
@@ -73,7 +90,7 @@ def main(argv: list[str]) -> int:
     checker = -(numpy.sum(array.xy, 0) % 2) & 0xff
     numpy.copyto(array.rgb, numpy.dstack((rg, checker)), casting='unsafe')
 
-    view = ImageView(image, QtCore.QSize(512, 512))
+    view = ImageView(image, size=QtCore.QSize(512, 512))
     window.setCentralWidget(view)
     window.show()
     return app.exec()
