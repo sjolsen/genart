@@ -32,6 +32,9 @@ class ImageView(QtWidgets.QWidget):
         self.image = image
         self.resample = resample
         self._size_hint = size or image.size()
+        self.setSizePolicy(QtWidgets.QSizePolicy(
+            QtWidgets.QSizePolicy.MinimumExpanding,
+            QtWidgets.QSizePolicy.MinimumExpanding))
 
     def sizeHint(self) -> QtCore.QSize:
         return self._size_hint
@@ -208,7 +211,8 @@ class UI:
 
         settings.addWidget(self.color_scheme)
         self.color_scheme.add_button('Monochrome', ColorScheme.MONOCHROME)
-        self.color_scheme.add_button('Color (divmod + gradient)', ColorScheme.COLOR_DIVMOD_GRAD).click()
+        self.color_scheme.add_button(
+            'Color (divmod + gradient)', ColorScheme.COLOR_DIVMOD_GRAD).click()
 
         for d in demo.DEMOS:
             self.programs.addItem(ProgramItem(d))
