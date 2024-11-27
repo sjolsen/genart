@@ -10,7 +10,12 @@ import numpy
 
 class ComputeNode(abc.ABC):
     """Base class for randomly generated compute nodes."""
+    precedence: int
     shape: int
+
+    @abc.abstractmethod
+    def pretty_print(self, children: list[str]) -> str:
+        pass
 
     @abc.abstractmethod
     def compute(self, xy: numpy.ndarray, inputs: list[numpy.ndarray]) -> numpy.ndarray:
@@ -20,9 +25,10 @@ class ComputeNode(abc.ABC):
 @dataclasses.dataclass(frozen=True)
 class Constant(ComputeNode):
     value: int
+    precedence: int = 0
     shape: int = 0
 
-    def __str__(self) -> str:
+    def pretty_print(self, children: list[str]) -> str:
         return str(self.value)
 
     def compute(self, xy: numpy.ndarray, inputs: list[numpy.ndarray]) -> numpy.ndarray:
@@ -32,9 +38,10 @@ class Constant(ComputeNode):
 @dataclasses.dataclass(frozen=True)
 class Variable(ComputeNode):
     index: int
+    precedence: int = 0
     shape: int = 0
 
-    def __str__(self) -> str:
+    def pretty_print(self, children: list[str]) -> str:
         return 'xy'[self.index]
 
     def compute(self, xy: numpy.ndarray, inputs: list[numpy.ndarray]) -> numpy.ndarray:
@@ -42,15 +49,35 @@ class Variable(ComputeNode):
 
 
 @dataclasses.dataclass(frozen=True)
-class Operator(ComputeNode):
-    function: Callable[[numpy.ndarray, ...], numpy.ndarray]
-    shape: int
+class UnaryOperator(ComputeNode):
+    sigil: str
+    function: Callable[[numpy.ndarray], numpy.ndarray]
+    precedence: int = 1
+    shape: int = 1
 
-    def __str__(self) -> str:
-        return self.function.__name__
+    def pretty_print(self, children: list[str]) -> str:
+        [a] = children
+        return f'{self.sigil}{a}'
 
     def compute(self, xy: numpy.ndarray, inputs: list[numpy.ndarray]) -> numpy.ndarray:
-        return self.function(*inputs)
+        [a] = inputs
+        return self.function(a)
+
+
+@dataclasses.dataclass(frozen=True)
+class BinaryOperator(ComputeNode):
+    sigil: str
+    function: Callable[[numpy.ndarray, numpy.ndarray], numpy.ndarray]
+    precedence: int
+    shape: int = 2
+
+    def pretty_print(self, children: list[str]) -> str:
+        [a, b] = children
+        return f'{a} {self.sigil} {b}'
+
+    def compute(self, xy: numpy.ndarray, inputs: list[numpy.ndarray]) -> numpy.ndarray:
+        [a, b] = inputs
+        return self.function(a, b)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -59,11 +86,14 @@ class Program:
     children: tuple['Program', ...]
 
     def __str__(self) -> str:
-        if self.children:
-            children = ', '.join(str(c) for c in self.children)
-            return f'{self.node}({children})'
-        else:
-            return str(self.node)
+        children: list[str] = []
+        for c in self.children:
+            if c.node.precedence < self.node.precedence:
+                children.append(str(c))
+            else:
+                children.append(f'({c})')
+
+        return self.node.pretty_print(children)
 
     def run(self, xy: numpy.ndarray) -> numpy.ndarray:
         state: dict['Program', numpy.ndarray] = {}
@@ -82,29 +112,40 @@ class Program:
         return state[self]
 
 
+X = Variable(0)
+Y = Variable(1)
+
+NEG = UnaryOperator('-', operator.neg)
+INV = UnaryOperator('~', operator.invert)
+
+MUL = BinaryOperator('*', operator.mul, 2)
+DIV = BinaryOperator('//', operator.floordiv, 2)
+MOD = BinaryOperator('%', operator.mod, 2)
+
+ADD = BinaryOperator('+', operator.add, 3)
+SUB = BinaryOperator('-', operator.sub, 3)
+
+# Collapse bitwise operators into the same precedence as +/- for readability
+LSH = BinaryOperator('<<', operator.lshift, 3)
+RSH = BinaryOperator('>>', operator.rshift, 3)
+AND = BinaryOperator('&', operator.and_, 3)
+XOR = BinaryOperator('^', operator.xor, 3)
+IOR = BinaryOperator('|', operator.or_, 3)
+
+
 RANDOM_LEAVES: tuple[Optional[ComputeNode], ...] = (
-    # Constant
-    None,
-    # x, y
-    Variable(0),
-    Variable(1),
+    None, # Constant
+    X, Y,
 )
 
 RANDOM_NODES: tuple[Optional[ComputeNode], ...] = RANDOM_LEAVES + (
     # Unary operators
-    Operator(operator.neg, 1),
-    Operator(operator.invert, 1),
+    NEG, INV,
     # Binary operators
-    Operator(operator.add, 2),
-    Operator(operator.sub, 2),
-    Operator(operator.mul, 2),
-    Operator(operator.floordiv, 2),
-    Operator(operator.mod, 2),
-    Operator(operator.and_, 2),
-    Operator(operator.or_, 2),
-    Operator(operator.xor, 2),
-    Operator(operator.lshift, 2),
-    Operator(operator.rshift, 2),
+    MUL, DIV, MOD,
+    ADD, SUB,
+    LSH, RSH,
+    AND, XOR, IOR,
 )
 
 
@@ -134,8 +175,8 @@ def demo() -> Program:
     x = Program(Variable(0), ())
     y = Program(Variable(1), ())
     const = lambda c: Program(Constant(c), ())
-    binop = lambda op: lambda a, b: Program(Operator(op, 2), (a, b))
-    sub = binop(operator.sub)
-    or_ = binop(operator.or_)
-    mod = binop(operator.mod)
+    binop = lambda op: lambda a, b: Program(op, (a, b))
+    sub = binop(SUB)
+    or_ = binop(IOR)
+    mod = binop(MOD)
     return sub(x, or_(const(-108), mod(y, (sub(x, const(8))))))
