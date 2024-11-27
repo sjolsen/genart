@@ -93,9 +93,12 @@ class RandomArt:
         self.array = ImageArray(self.image)
 
     def render(self, p: program.Program):
-        result = p.run(self.array.xy) % 256
-        numpy.copyto(self.array.rgb,
-                     result[:, :, numpy.newaxis], casting='unsafe')
+        try:
+            result = p.run(self.array.xy) % 256
+            numpy.copyto(self.array.rgb, result[:, :, numpy.newaxis],
+                         casting='unsafe')
+        except program.ExecutionError:
+            self.image.fill('magenta')
         self.view.update()
 
 

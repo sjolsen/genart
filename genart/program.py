@@ -1,4 +1,5 @@
 import abc
+import contextlib
 import dataclasses
 import math
 import operator
@@ -80,6 +81,20 @@ class BinaryOperator(ComputeNode):
         return self.function(a, b)
 
 
+class ExecutionError(Exception):
+    pass
+
+
+@contextlib.contextmanager
+def execution_guard():
+    """Handle numeric errors."""
+    with numpy.errstate(all='ignore'):
+        try:
+            return (yield)
+        except (ArithmeticError, ValueError) as e:
+            raise ExecutionError from e
+
+
 @dataclasses.dataclass(frozen=True)
 class Program:
     node: ComputeNode
@@ -106,7 +121,7 @@ class Program:
                 stack.extend(pending)
             else:
                 inputs = [state[c] for c in top.children]
-                with numpy.errstate(all='ignore'):
+                with execution_guard():
                     state[top] = top.node.compute(xy, inputs)
                 stack.pop()
 
@@ -331,7 +346,7 @@ def free_variables(p: Program) -> frozenset[Variable]:
 
 
 RANDOM_LEAVES: tuple[Optional[ComputeNode], ...] = (
-    None, # Constant
+    None,  # Constant
     Syntax.X, Syntax.Y,
 )
 
@@ -372,8 +387,9 @@ def generate_program(max_depth: int = 4) -> Program:
     while True:
         p = random_program(max_depth)
         try:
-            p = simplify(p)
-        except (ArithmeticError, ValueError):
+            with execution_guard():
+                p = simplify(p)
+        except ExecutionError:
             continue
         if all_vars <= free_variables(p):
             return p
