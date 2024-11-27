@@ -127,3 +127,15 @@ def random_program(max_depth: int = 4) -> Program:
     node = random_node(max_depth)
     children = tuple(random_program(max_depth - 1) for _ in range(node.shape))
     return Program(node, children)
+
+
+def demo() -> Program:
+    """Returns the program [x - (-108 | (y % (x - 8)))]."""
+    x = Program(Variable(0), ())
+    y = Program(Variable(1), ())
+    const = lambda c: Program(Constant(c), ())
+    binop = lambda op: lambda a, b: Program(Operator(op, 2), (a, b))
+    sub = binop(operator.sub)
+    or_ = binop(operator.or_)
+    mod = binop(operator.mod)
+    return sub(x, or_(const(-108), mod(y, (sub(x, const(8))))))

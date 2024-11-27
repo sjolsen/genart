@@ -77,23 +77,47 @@ class ImageArray:
         self.blue = self.bgra[:, :, 0]
 
 
+class RandomArt:
+    image: QtGui.QImage
+    view: ImageView
+    array: ImageArray
+
+    def __init__(self):
+        super().__init__()
+        size = QtCore.QSize(256, 256)
+        self.image = QtGui.QImage(size, QtGui.QImage.Format_RGB32)
+        self.image.setColorSpace(QtGui.QColorSpace.SRgbLinear)
+        self.image.fill('magenta')
+        self.view = ImageView(self.image, size=QtCore.QSize(512, 512))
+        self.array = ImageArray(self.image)
+
+    def render(self, p: program.Program):
+        print(str(p))
+        result = p.run(self.array.xy) % 256
+        numpy.copyto(self.array.rgb,
+                     result[:, :, numpy.newaxis], casting='unsafe')
+        self.view.update()
+
+    def reroll(self):
+        self.render(program.random_program())
+
+
 def main(argv: list[str]) -> int:
     app = QtWidgets.QApplication(argv)
     window = QtWidgets.QMainWindow()
     window.setWindowTitle('genart')
 
-    image = QtGui.QImage(QtCore.QSize(256, 256), QtGui.QImage.Format_RGB32)
-    image.setColorSpace(QtGui.QColorSpace.SRgbLinear)
-    image.fill('magenta')
+    art = RandomArt()
+    art.render(program.demo())
 
-    # red = x, green = y, blue = checker
-    array = ImageArray(image)
-    prog = program.random_program()
-    print(str(prog))
-    result = prog.run(array.xy) % 256
-    numpy.copyto(array.rgb, result[:, :, numpy.newaxis], casting='unsafe')
+    button = QtWidgets.QPushButton('Reroll')
+    button.clicked.connect(art.reroll)
 
-    view = ImageView(image, size=QtCore.QSize(512, 512))
-    window.setCentralWidget(view)
+    center = QtWidgets.QWidget()
+    layout = QtWidgets.QVBoxLayout(center)
+    layout.addWidget(art.view)
+    layout.addWidget(button)
+
+    window.setCentralWidget(center)
     window.show()
     return app.exec()
