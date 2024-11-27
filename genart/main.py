@@ -102,6 +102,16 @@ class RandomArt:
         self.view.update()
 
 
+class SaveDialog(QtWidgets.QFileDialog):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.setFileMode(self.FileMode.AnyFile)
+        self.setAcceptMode(self.AcceptMode.AcceptSave)
+        self.setMimeTypeFilters(['image/png'])
+        self.setDefaultSuffix('png')
+
+
 class ProgramItem(QtWidgets.QListWidgetItem):
     program: program.Program
 
@@ -112,14 +122,19 @@ class ProgramItem(QtWidgets.QListWidgetItem):
 
 
 class UI:
+    app: QtWidgets.QApplication
     window: QtWidgets.QMainWindow
+    save_dialog: SaveDialog
     art: RandomArt
     programs: QtWidgets.QListWidget
 
-    def __init__(self):
+    def __init__(self, app: QtWidgets.QApplication):
         super().__init__()
+        self.app = app
         self.window = QtWidgets.QMainWindow()
         self.window.setWindowTitle('genart')
+        self.save_dialog = SaveDialog(self.window)
+        self.save_dialog.fileSelected.connect(self.save_program)
         self.art = RandomArt()
         self.programs = QtWidgets.QListWidget()
         self.programs.currentItemChanged.connect(self.select_program)
@@ -133,9 +148,20 @@ class UI:
         hlayout.addWidget(self.art.view)
         vlayout.addWidget(self.programs)
 
-        button = QtWidgets.QPushButton('Reroll')
-        button.clicked.connect(self.reroll)
-        vlayout.addWidget(button)
+        buttons = QtWidgets.QGridLayout()
+        vlayout.addLayout(buttons)
+
+        copy = QtWidgets.QPushButton('Copy')
+        copy.clicked.connect(self.copy_program)
+        buttons.addWidget(copy, 0, 0)
+
+        save = QtWidgets.QPushButton('Save')
+        save.clicked.connect(self.save_dialog.open)
+        buttons.addWidget(save, 0, 1)
+
+        reroll = QtWidgets.QPushButton('Reroll')
+        reroll.clicked.connect(self.reroll)
+        buttons.addWidget(reroll, 1, 0, 1, 2)
 
         for d in demo.DEMOS:
             self.programs.addItem(ProgramItem(d))
@@ -143,6 +169,18 @@ class UI:
 
     def select_program(self, new: ProgramItem, old: ProgramItem):
         self.art.render(new.program)
+
+    def copy_program(self):
+        item = self.programs.currentItem()
+        clipboard = self.app.clipboard()
+        clipboard.setText(str(item.program))
+
+    def save_program(self, filename: str):
+        item = self.programs.currentItem()
+        image = self.art.image.convertedToColorSpace(QtGui.QColorSpace.SRgb)
+        image.setText('Software', 'sjolsen/genart')
+        image.setText('Comment', str(item.program))
+        image.save(filename)
 
     def reroll(self):
         item = ProgramItem(program.generate_program())
@@ -152,6 +190,6 @@ class UI:
 
 def main(argv: list[str]) -> int:
     app = QtWidgets.QApplication(argv)
-    ui = UI()
+    ui = UI(app)
     ui.window.show()
     return app.exec()
