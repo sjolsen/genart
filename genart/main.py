@@ -94,9 +94,12 @@ class RandomArt:
 
     def render(self, p: program.Program):
         try:
-            result = p.run(self.array.xy) % 256
-            numpy.copyto(self.array.rgb, result[:, :, numpy.newaxis],
-                         casting='unsafe')
+            result = p.run(self.array.xy)
+            [dy, dx] = numpy.gradient(result)
+            theta = numpy.angle(dx + dy * 1j)
+            numpy.copyto(self.array.blue, result % 256, casting='unsafe')
+            numpy.copyto(self.array.red, result // 256, casting='unsafe')
+            numpy.copyto(self.array.green, 128 * (1 + numpy.cos(theta)), casting='unsafe')
         except program.ExecutionError:
             self.image.fill('magenta')
         self.view.update()
