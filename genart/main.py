@@ -5,6 +5,7 @@ from PySide6 import QtGui
 from PySide6 import QtWidgets
 import numpy
 
+from genart import demo
 from genart import program
 
 
@@ -108,7 +109,7 @@ def main(argv: list[str]) -> int:
     window.setWindowTitle('genart')
 
     art = RandomArt()
-    art.render(program.demo2())
+    art.render(demo.DEMO1)
 
     button = QtWidgets.QPushButton('Reroll')
     button.clicked.connect(art.reroll)
