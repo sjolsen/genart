@@ -99,7 +99,7 @@ class RandomArt:
         self.view.update()
 
     def reroll(self):
-        self.render(program.random_program())
+        self.render(program.generate_program())
 
 
 def main(argv: list[str]) -> int:
