@@ -108,7 +108,7 @@ def main(argv: list[str]) -> int:
     window.setWindowTitle('genart')
 
     art = RandomArt()
-    art.render(program.demo())
+    art.render(program.demo2())
 
     button = QtWidgets.QPushButton('Reroll')
     button.clicked.connect(art.reroll)

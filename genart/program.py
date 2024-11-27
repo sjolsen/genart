@@ -378,6 +378,7 @@ def generate_program(max_depth: int = 4) -> Program:
             return p
 
 
+# TODO: Unify the demo code
 def demo() -> Program:
     """Returns the program [x - (-108 | (y % (x - 8)))]."""
     x = Program(Syntax.X, ())
@@ -388,3 +389,18 @@ def demo() -> Program:
     or_ = binop(Syntax.IOR)
     mod = binop(Syntax.MOD)
     return sub(x, or_(const(-108), mod(y, (sub(x, const(8))))))
+
+
+def demo2() -> Program:
+    """Returns the program [y % ((2 - x) ^ -(y | x))]."""
+    x = Program(Syntax.X, ())
+    y = Program(Syntax.Y, ())
+    const = lambda c: Program(Constant(c), ())
+    unop = lambda op: lambda a: Program(op, (a,))
+    binop = lambda op: lambda a, b: Program(op, (a, b))
+    neg = unop(Syntax.NEG)
+    sub = binop(Syntax.SUB)
+    or_ = binop(Syntax.IOR)
+    mod = binop(Syntax.MOD)
+    xor = binop(Syntax.XOR)
+    return mod(y, xor(sub(const(2), x), neg(or_(y, x))))
